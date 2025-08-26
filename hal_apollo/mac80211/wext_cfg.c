@@ -4937,7 +4937,8 @@ static int atbm_ioctl_send_singleTone(struct net_device *dev, struct iw_request_
 	for(ii = 0;ii<wrqu->data.length;ii++){
 		if(extra[ii] == ',')
 		{
-			ptr = &extra[ii+1];
+			ptr = &extra[ii+1];
+
 
 			break;
 		}
@@ -5025,7 +5026,8 @@ static int atbm_ioctl_set_duty_ratio(struct net_device *dev, struct iw_request_i
 	for(ii = 0;ii<wrqu->data.length;ii++){
 		if(extra[ii] == ',')
 		{
-			ptr = &extra[ii+1];
+			ptr = &extra[ii+1];
+
 
 			break;
 		}
@@ -7187,7 +7189,7 @@ static int atbm_ioctl_get_sta_info(struct net_device *dev, struct iw_request_inf
     if(p_info != NULL)
         atbm_kfree(p_info);
 
-
+	return 0;
 }
 
 static int atbm_ioctl_get_ap_info(struct net_device *dev, struct iw_request_info *info, union iwreq_data *wrqu, char *extra)

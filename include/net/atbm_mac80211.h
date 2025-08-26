@@ -19,7 +19,11 @@
 #include <linux/device.h>
 #include <linux/ieee80211.h>
 #include <net/cfg80211.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+#include <linux/unaligned.h>
+#else
 #include <asm/unaligned.h>
+#endif
 #include <linux/hash.h>
 #include <linux/module.h>
 #include <net/ieee80211_radiotap.h>
@@ -4845,15 +4849,23 @@ ieee80211_vif_type_p2p(struct ieee80211_vif *vif)
 static inline void atbm_wdev_lock(struct wireless_dev *wdev)
 	__acquires(wdev)
 {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0))
+	wiphy_lock(wdev->wiphy);
+#else
 	mutex_lock(&wdev->mtx);
 	__acquire(wdev->mtx);
+#endif
 }
 
 static inline void atbm_wdev_unlock(struct wireless_dev *wdev)
 	__releases(wdev)
 {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0))
+	wiphy_unlock(wdev->wiphy);
+#else
 	__release(wdev->mtx);
 	mutex_unlock(&wdev->mtx);
+#endif
 }
 #ifdef CONFIG_ATBM_MAC80211_NO_USE
 void ieee80211_enable_rssi_reports(struct ieee80211_vif *vif,

@@ -25,7 +25,11 @@
 #include <linux/slab.h>
 #include <linux/export.h>
 #include <net/atbm_mac80211.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+#include <linux/unaligned.h>
+#else
 #include <asm/unaligned.h>
+#endif
 #include <net/sch_generic.h>
 #include <linux/kthread.h>
 
@@ -4032,13 +4036,24 @@ static void ieee80211_mgd_assoc_rx_resp(struct ieee80211_work* wk,struct atbm_ie
 	atbm_wdev_lock(wdev);
 	cfg80211_rx_assoc_resp(wk->sdata->dev,wk->assoc.bss,(u8*)mgmt,len);
 	atbm_wdev_unlock(wdev);
-#elif (LINUX_VERSION_CODE > KERNEL_VERSION(5,0,0))
+#elif (LINUX_VERSION_CODE < KERNEL_VERSION(5,1,0))
 	atbm_wdev_lock(wdev);
-	cfg80211_rx_assoc_resp(wk->sdata->dev,wk->assoc.bss,(u8*)mgmt,len, -1, NULL, 0);
+	cfg80211_rx_assoc_resp(wk->sdata->dev, wk->assoc.bss, (u8*)mgmt, len, -1);
 	atbm_wdev_unlock(wdev);
-#else
+#elif (LINUX_VERSION_CODE < KERNEL_VERSION(5,15,0))
 	atbm_wdev_lock(wdev);
-	cfg80211_rx_assoc_resp(wk->sdata->dev,wk->assoc.bss,(u8*)mgmt,len, -1);
+	cfg80211_rx_assoc_resp(wk->sdata->dev, wk->assoc.bss, (u8*)mgmt, len, -1, NULL, 0);
+	atbm_wdev_unlock(wdev);
+#else // (LINUX_VERSION_CODE >= KERNEL_VERSION(5,15,0))
+	atbm_wdev_lock(wdev);
+	{
+		struct cfg80211_rx_assoc_resp_data data = {
+			.buf = (const u8 *)mgmt,
+			.len = len,
+		};
+		data.links[0].bss = wk->assoc.bss;
+		cfg80211_rx_assoc_resp(wk->sdata->dev, &data);
+	}
 	atbm_wdev_unlock(wdev);
 #endif
 
@@ -4051,7 +4066,13 @@ static void ieee80211_mgd_assoc_timeout(struct ieee80211_work* wk)
 #else
 	struct wireless_dev *wdev = wk->sdata->dev->ieee80211_ptr;
 	atbm_wdev_lock(wdev);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6,0,0))
 	cfg80211_assoc_timeout(wk->sdata->dev,wk->assoc.bss/*wk->filter_bssid*/);
+#else
+	cfg80211_connect_timeout(wk->sdata->dev, wk->assoc.bss->bssid,
+							 NULL, 0, GFP_KERNEL,
+						  NL80211_TIMEOUT_ASSOC);
+#endif
 	atbm_wdev_unlock(wdev);
 #endif
 }
@@ -4840,6 +4861,7 @@ int ieee80211_mgd_disassoc(struct ieee80211_sub_if_data *sdata,
 {
 	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
 	u8 bssid[ETH_ALEN];
+	const u8 *target_bssid;
 
 	mutex_lock(&ifmgd->mtx);
 
@@ -4849,20 +4871,30 @@ int ieee80211_mgd_disassoc(struct ieee80211_sub_if_data *sdata,
 	 * to cfg80211 while that's in a locked section already
 	 * trying to tell us that the user wants to disconnect.
 	 */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6,0,0))
 	if (ifmgd->associated != req->bss) {
 		mutex_unlock(&ifmgd->mtx);
 		return -ENOLINK;
 	}
+	target_bssid = req->bss->bssid;
+#else
+	if (!ifmgd->associated ||
+		!ether_addr_equal(ifmgd->associated->bssid, req->ap_addr)) {
+		mutex_unlock(&ifmgd->mtx);
+		return -ENOLINK;
+	}
+	target_bssid = req->ap_addr;
+#endif
 
 	atbm_printk_mgmt( "%s: disassociating from %pM by local choice (reason=%d)\n",
-	       sdata->name, req->bss->bssid, req->reason_code);
+	       sdata->name, target_bssid, req->reason_code);
 
-	memcpy(bssid, req->bss->bssid, ETH_ALEN);
+	memcpy(bssid, target_bssid, ETH_ALEN);
 	ieee80211_set_disassoc(sdata, false, true);
 
 	mutex_unlock(&ifmgd->mtx);
 
-	ieee80211_send_deauth_disassoc(sdata, req->bss->bssid,
+	ieee80211_send_deauth_disassoc(sdata, target_bssid,
 			IEEE80211_STYPE_DISASSOC, req->reason_code,
 			cookie, !req->local_state_change);
 	sta_info_flush(sdata->local, sdata);

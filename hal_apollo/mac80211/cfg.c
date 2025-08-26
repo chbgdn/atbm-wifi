@@ -220,6 +220,9 @@ int atbm_change_iface_to_monitor(struct net_device *dev)
 }
 
 static int ieee80211_add_key(struct wiphy *wiphy, struct net_device *dev,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+				int link_id,
+#endif
 			     u8 key_idx, bool pairwise, const u8 *mac_addr,
 			     struct key_params *params)
 {
@@ -283,6 +286,9 @@ static int ieee80211_add_key(struct wiphy *wiphy, struct net_device *dev,
 }
 
 static int ieee80211_del_key(struct wiphy *wiphy, struct net_device *dev,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+				int link_id,
+#endif
 			     u8 key_idx, bool pairwise, const u8 *mac_addr)
 {
 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
@@ -324,6 +330,9 @@ static int ieee80211_del_key(struct wiphy *wiphy, struct net_device *dev,
 }
 
 static int ieee80211_get_key(struct wiphy *wiphy, struct net_device *dev,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+				int link_id,
+#endif
 			     u8 key_idx, bool pairwise, const u8 *mac_addr,
 			     void *cookie,
 			     void (*callback)(void *cookie,
@@ -418,6 +427,9 @@ static int ieee80211_get_key(struct wiphy *wiphy, struct net_device *dev,
 
 static int ieee80211_config_default_key(struct wiphy *wiphy,
 					struct net_device *dev,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+					int link_id,
+#endif
 					u8 key_idx, bool uni,
 					bool multi)
 {
@@ -430,6 +442,9 @@ static int ieee80211_config_default_key(struct wiphy *wiphy,
 
 static int ieee80211_config_default_mgmt_key(struct wiphy *wiphy,
 					     struct net_device *dev,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+						 int link_id,
+#endif
 					     u8 key_idx)
 {
 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
@@ -1088,14 +1103,27 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 #endif
 	return ieee80211_add_beacon(wiphy,dev,&params);	
 }
-static  int ieee80211_change_beacon(struct wiphy *wiphy, struct net_device *dev,
-									   struct cfg80211_beacon_data *info)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5,17,0))
+static int ieee80211_change_beacon(struct wiphy *wiphy, struct net_device *dev,
+				   struct cfg80211_beacon_data *info)
+#else
+static int ieee80211_change_beacon(struct wiphy *wiphy, struct net_device *dev,
+				   struct cfg80211_ap_update *info)
+#endif
 {
 	struct beacon_parameters params;
-	memset(&params,0,sizeof(struct beacon_parameters));
-	BEACON_PARAMS_CPY(params,info);
+	struct cfg80211_beacon_data *beacon_data;
 
-	return ieee80211_set_beacon(wiphy, dev,&params);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5,17,0))
+	beacon_data = info;
+#else
+	beacon_data = &info->beacon;
+#endif
+
+	memset(&params,0,sizeof(struct beacon_parameters));
+	BEACON_PARAMS_CPY(params, beacon_data);
+
+	return ieee80211_set_beacon(wiphy, dev, &params);
 }
 
 #endif
@@ -1281,7 +1309,7 @@ static void sta_apply_parameters(struct ieee80211_local *local,
 
 	if (params->listen_interval >= 0)
 		sta->listen_interval = params->listen_interval;
-
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5,4,0))
 	if (params->supported_rates) {
 		rates = 0;
 
@@ -1301,6 +1329,7 @@ static void sta_apply_parameters(struct ieee80211_local *local,
 						  &sta->sta.ht_cap);
 		ieee80211_ht_cap_to_sta_channel_type(sta);
 	}
+#endif
 	if(sta->sta.ht_cap.ht_supported){
 		set_sta_flag(sta, WLAN_STA_WME);
 		sta->sta.wme = true;

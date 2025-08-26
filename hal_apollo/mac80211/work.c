@@ -21,7 +21,11 @@
 #include <linux/crc32.h>
 #include <linux/slab.h>
 #include <net/atbm_mac80211.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+#include <linux/unaligned.h>
+#else
 #include <asm/unaligned.h>
+#endif
 
 #include "ieee80211_i.h"
 #include "rate.h"

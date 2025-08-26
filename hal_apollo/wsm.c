@@ -3047,7 +3047,11 @@ static int atbm_get_prio_queue(struct atbm_vif *priv,
 
 		score = ((edca->aifns + edca->cwMin) << 16) +
 				(edca->cwMax - edca->cwMin) *
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6,1,0))
 				(prandom_u32() & 0xFFFF);
+#else
+				(get_random_u32() & 0xFFFF);
+#endif
 
 		//score = ((edca->aifns) << 8) +
 		//		((1<<edca->cwMin) &random32());

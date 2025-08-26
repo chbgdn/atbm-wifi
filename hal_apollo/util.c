@@ -176,10 +176,10 @@ void atbm_clear_priv_queue_cap(struct atbm_vif *priv)
 void atbm_xmit_linearize(struct atbm_common	*hw_priv,
 	 struct wsm_tx *wsm,char *xmit,int xmit_len)
 {
-	int wsm_id = __le16_to_cpu(wsm->hdr.id) & 0x3F;	
-	
+	int wsm_id = __le16_to_cpu(wsm->hdr.id) & 0x3F;
+
 	while(wsm_id == WSM_TRANSMIT_REQ_MSG_ID){
-		
+
 		u8 queueId = wsm_queue_id_to_linux(wsm->queueId & 0x03);
 		struct atbm_queue *queue = &hw_priv->tx_queue[queueId];
 		const struct atbm_txpriv *txpriv = NULL;
@@ -187,7 +187,7 @@ void atbm_xmit_linearize(struct atbm_common	*hw_priv,
 		int sg_len = 0;
 		int sg = 0;
 		struct ieee80211_tx_info *tx_info;
-		
+
 		if(atbm_queue_get_skb(queue,wsm->packetID,
 				&skb, &txpriv) != 0){
 			WARN_ON(1);
@@ -201,33 +201,33 @@ void atbm_xmit_linearize(struct atbm_common	*hw_priv,
 		}
 
 		tx_info = IEEE80211_SKB_CB(skb);
-		
+
 		printk_once(KERN_ERR "sg process\n");
 
 		memcpy(xmit,skb->data,skb_headlen(skb));
 
 		sg_len += skb_headlen(skb);
 		xmit += sg_len;
-		
+
 		for (sg = 0; sg < skb_shinfo(skb)->nr_frags; sg++){
-			
+
 			skb_frag_t *frag = &skb_shinfo(skb)->frags[sg];
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(5, 4, 0))
-			memcpy(xmit,page_address(frag->bv_page) + frag->bv_offset,frag->bv_len);
-#elif (LINUX_VERSION_CODE < KERNEL_VERSION(3, 2, 0))		
+			memcpy(xmit, skb_frag_address(frag), skb_frag_size(frag));
+#elif (LINUX_VERSION_CODE < KERNEL_VERSION(3, 2, 0))
 			memcpy(xmit,page_address(frag->page) + frag->page_offset,frag->size);
 #else
 			memcpy(xmit,page_address(frag->page.p) + frag->page_offset,frag->size);
 #endif
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(5, 4, 0))
-			xmit += frag->bv_len;
-			sg_len += frag->bv_len;
+			xmit += skb_frag_size(frag);
+			sg_len += skb_frag_size(frag);
 #else
 			xmit += frag->size;
 			sg_len += frag->size;
 #endif
 		}
-		
+
 		if(tx_info->sg_tailneed){
 			printk_once(KERN_ERR "sg_tailneed(%d)\n",tx_info->sg_tailneed);
 			memset(xmit,0,tx_info->sg_tailneed);
@@ -239,7 +239,7 @@ void atbm_xmit_linearize(struct atbm_common	*hw_priv,
 			sg_len += tx_info->sg_tailneed;
 		}
 		WARN_ON_ONCE(sg_len != xmit_len);
-		return;		
+		return;
 	}
 
 	memcpy(xmit,wsm,xmit_len);
